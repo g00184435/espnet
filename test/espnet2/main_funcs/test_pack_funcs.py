@@ -4,7 +4,6 @@ import tarfile
 import pytest
 import yaml
 
-from espnet2.main_funcs.pack_funcs import default_tarinfo
 from espnet2.main_funcs.pack_funcs import find_path_and_change_it_recursive
 from espnet2.main_funcs.pack_funcs import pack
 from espnet2.main_funcs.pack_funcs import unpack
@@ -16,13 +15,11 @@ def test_find_path_and_change_it_recursive():
     assert target == {"a": ["bar/path.npy"], "b": 3}
 
 
-def test_default_tarinfo():
-    # Just call
-    default_tarinfo("aaa")
-
-
-def test_pack_unpack(tmp_path: Path):
-    files = {"abc.pth": str(tmp_path / "foo.pth")}
+@pytest.mark.parametrize(
+    "type", ["tgz", "tar", "tbz2", "txz", "zip"],
+)
+def test_pack_unpack(tmp_path: Path, type):
+    files = {"abc": str(tmp_path / "foo.pth")}
     with (tmp_path / "foo.pth").open("w"):
         pass
     with (tmp_path / "bar.yaml").open("w") as f:
@@ -36,20 +33,21 @@ def test_pack_unpack(tmp_path: Path):
 
     pack(
         files=files,
-        yaml_files={"def.yaml": str(tmp_path / "bar.yaml")},
+        yaml_files={"def": str(tmp_path / "bar.yaml")},
         option=[tmp_path / "a", tmp_path / "b" / "a"],
-        outpath=str(tmp_path / "out.tgz"),
+        outpath=str(tmp_path / f"out.{type}"),
     )
 
-    retval = unpack(str(tmp_path / "out.tgz"), str(tmp_path))
+    retval = unpack(str(tmp_path / f"out.{type}"), str(tmp_path))
+    # Retry unpack. If cache file exists, generate dict from it
+    retval2 = unpack(str(tmp_path / f"out.{type}"), str(tmp_path))
     assert retval == {
-        "abc": str(tmp_path / "packed" / "abc.pth"),
-        "def": str(tmp_path / "packed" / "def.yaml"),
-        "option": [
-            str(tmp_path / "packed" / "option" / "a"),
-            str(tmp_path / "packed" / "option" / "a.1"),
-        ],
-        "meta": str(tmp_path / "packed" / "meta.yaml"),
+        "abc": str(tmp_path / tmp_path / "foo.pth"),
+        "def": str(tmp_path / tmp_path / "bar.yaml"),
+    }
+    assert retval2 == {
+        "abc": str(tmp_path / tmp_path / "foo.pth"),
+        "def": str(tmp_path / tmp_path / "bar.yaml"),
     }
 
 
